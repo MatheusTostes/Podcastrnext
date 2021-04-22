@@ -1,69 +1,91 @@
-import { format } from 'date-fns';
-import { parseISO } from 'date-fns/fp';
-import { ptBR } from 'date-fns/locale';
-import Image from 'next/image';
-import { GetStaticPaths, GetStaticProps } from 'next';
-import { useRouter } from 'next/router';
-import { api } from '../../services/api';
-import { convertDurationToTimeString } from '../../utils/convertDurationToTimeString';
-
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { GetStaticPaths, GetStaticProps } from "next"
+import Image from "next/image";
+import Link from "next/link";
+import { api } from "../../services/api"
+import { convertDurationToTimeString } from "../../utils/convertDurationToTimeString";
 import styles from './episode.module.scss'
-import React from 'react';
-import Link from 'next/link';
+
+import { useRouter } from 'next/router'
 
 type Episode = {
   id: string;
   title: string;
   thumbnail: string;
+  description: string;
   members: string;
-  duration: string;
+  duration: number;
   durationAsString: string;
   url: string;
-  publishedAt: String;
-  description: string;
+  publishedAt: string;
 }
 
 type EpisodeProps = {
-  episode;
+  episode: Episode;
 }
 
-export default function Episode({ episode }: EpisodeProps) {
+export default function Episode({ episode }: EpisodeProps ) {
+  const router = useRouter()
+
+  if (router.isFallback) {
+    return <p>Carregando...</p>
+  }
+
   return (
-   <div className={styles.episode}>
-     <div className={styles.thumbnailContainer}>
-       <Link href="/">
-        <button type="button">
-          <img src="/arrow-left.svg" alt="Voltar"/>
-        </button>
-       </Link>
-       <Image 
-        width={700} 
-        height={160} 
-        src={episode.thumbnail} 
-        objectFit="cover" 
+    <div className={styles.episode}>
+      <div className={styles.thumbnailContainer}>
+        <Link href="/">
+          <button>
+            <img src="/arrow-left.svg" alt="Voltar"/>
+          </button>
+        </Link>
+        <Image
+          width={700}
+          height={160}
+          src={episode.thumbnail}
+          objectFit="cover"
         />
-        <button type="button">
+        <button>
           <img src="/play.svg" alt="Tocar episódio"/>
         </button>
-     </div>
+      </div>
 
-     <header>
-       <h1>{episode.title}</h1>
-       <span>{episode.members}</span>
-       <span>{episode.publishedAt}</span>
-       <span>{episode.durationAsString}</span>
-     </header>
+      <header>
+        <h1>{episode.title}</h1>
+        <span>{episode.members}</span>
+        <span>{episode.publishedAt}</span>
+        <span>{episode.durationAsString}</span>
+      </header>
 
-     <div className={styles.description} 
-     dangerouslySetInnerHTML={{ __html: episode.description }}
-     />
-   </div>
+      <div
+        className={styles.description}
+        dangerouslySetInnerHTML={{
+          __html:
+          episode.description
+        }} 
+      />
+    </div>
   )
 }
 
 export const getStaticPaths: GetStaticPaths = async () => {
+  const { data } = await api.get('episodes', {
+    params: {
+      __limit: 2,
+      __sort: 'published_at',
+      __order: 'desc'
+    }
+  })
+
+  const paths = data.map(episode => ({
+    params: {
+      slug: episode.id
+    }
+  }))
+
   return {
-    paths: [],
+    paths,
     fallback: 'blocking'
   }
 }
@@ -71,24 +93,26 @@ export const getStaticPaths: GetStaticPaths = async () => {
 export const getStaticProps: GetStaticProps = async (ctx) => {
   const { slug } = ctx.params;
 
-  const { data } = await api.get(`/episodes/${slug}`)
-   
+  const { data } = await api.get(`/episodes/${slug}`);
+
   const episode = {
     id: data.id,
     title: data.title,
     thumbnail: data.thumbnail,
     members: data.members,
-    publishedAt: format(parseISO(data.published_at), 'd MMM yy', { locale: ptBR}),
+    publishedAt: format(parseISO(data.published_at), 'd MMM yy', { 
+      locale: ptBR
+    }),
     duration: Number(data.file.duration),
     durationAsString: convertDurationToTimeString(Number(data.file.duration)),
     description: data.description,
-    url: data.file.url
-  };
-  
+    url: data.file.url,
+  }
+
   return {
     props: {
-      episode,
+      episode
     },
-    revalidate: 60 * 60 * 24, // 24 hours
+    revalidate: 60 * 60 * 24 //24 hours
   }
 }
